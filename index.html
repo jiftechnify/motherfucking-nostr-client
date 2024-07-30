@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Motherfucking Nostr Client</title>
+  <script src="https://unpkg.com/nostr-tools/lib/nostr.bundle.js"></script>
+</head>
+<body>
+  <h1>Motherfuncking Nostr Client</h1>
+  <ul id="timeline"></ul>
+
+  <script>
+    (() => {
+    const timeline = document.getElementById("timeline")
+    if (timeline === null) {
+      console.error("no #timeline");
+      return;
+    }
+    
+    const ws = new WebSocket("wss://nrelay.c-stellar.net")
+
+    ws.addEventListener('open', () => {
+      ws.send(JSON.stringify(["REQ", "motherfucking-sub", { kinds: [1], since: Math.floor(Date.now() / 1000) }]));
+    })
+
+    ws.addEventListener('message', (ev) => {
+      console.log(ev);
+      try {
+        const r2cMsg = JSON.parse(ev.data);
+        if (r2cMsg[0] !== 'EVENT') {
+          console.log(r2cMsg);
+          return
+        }
+
+        const nostrEv = r2cMsg[2];
+        if (!window.NostrTools.verifyEvent(nostrEv)) {
+          console.error("nostr event with invalid signature:", nostrEv)
+        }
+        
+        const postView = document.createElement("li")
+
+        const authorView = document.createElement("b")
+        authorView.appendChild(document.createTextNode(nostrEv.pubkey))
+
+        const postContent =  document.createTextNode(nostrEv.content)
+
+        postView.appendChild(authorView)
+        postView.appendChild(document.createTextNode(" > "))
+        postView.appendChild(postContent)
+
+        timeline.insertBefore(postView, timeline.firstChild)
+      } catch (err) {
+        console.error(err);
+      }
+    });
+
+    ws.addEventListener('close', () => {
+      alert("Relay connection closed")
+    })
+  })();
+  </script>
+</body>
+</html>
