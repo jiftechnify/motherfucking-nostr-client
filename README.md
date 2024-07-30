@@ -1,0 +1,1 @@
+# motherfucking-nostr-client
