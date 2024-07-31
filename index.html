@@ -40,7 +40,7 @@
         const postView = document.createElement("li");
 
         const authorView = document.createElement("b");
-        authorView.appendChild(document.createTextNode(nostrEv.pubkey));
+        authorView.appendChild(document.createTextNode(nostrEv.pubkey.substring(0, 8)));
 
         const postContent = document.createTextNode(nostrEv.content);
 
