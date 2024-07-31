@@ -69,9 +69,9 @@
       return String(date.getHours()).padStart(2, "0") + ":" + String(date.getMinutes()).padStart(2, "0") + ":" + String(date.getSeconds()).padStart(2, "0");
     }
 
-    const urlPattern = /(https?:\/\/[^\s]+)/g;
+    var urlPattern = /(https?:\/\/[^\s]+)/g;
 
-    const timeline = document.getElementById("timeline");
+    var timeline = document.getElementById("timeline");
     if (timeline === null) {
       throw new Error("no #timeline");
     }
@@ -82,27 +82,27 @@
         return;
       }
 
-      const postView = document.createElement("li");
+      var postView = document.createElement("li");
       postView.classList.add("post");
 
-      const ts = new Date(nostrEv.created_at * 1000);
-      const tsView = document.createElement("time");
+      var ts = new Date(nostrEv.created_at * 1000);
+      var tsView = document.createElement("time");
       tsView.setAttribute("datetime", ts.toISOString());
       tsView.textContent = "[" + formatTimestamp(ts) + "]";
 
-      const authorView = document.createElement("b");
+      var authorView = document.createElement("b");
       authorView.textContent = nostrEv.pubkey.substring(0, 8);
-      const authorColor = parseInt(nostrEv.pubkey.substring(0, 2), 16) * 360 / 256;
+      var authorColor = parseInt(nostrEv.pubkey.substring(0, 2), 16) * 360 / 256;
       authorView.style.color = "hsl(" + authorColor + ", 90%, 45%)";
 
-      const contentSplitByUrl = nostrEv.content.split(urlPattern);
-      const contentElems = contentSplitByUrl
+      var contentSplitByUrl = nostrEv.content.split(urlPattern);
+      var contentElems = contentSplitByUrl
       .filter(function(s) {
         return s.length > 0;
       })
       .map(function(s) {
         if (s.indexOf("http") === 0) {
-          const a = document.createElement("a");
+          var a = document.createElement("a");
           a.href = s;
           a.target = "_blank";
           a.rel = "noreferrer";
@@ -130,7 +130,7 @@
       alert("Relay connection closed");
     }
 
-    let relayWS;
+    var relayWS;
     function subscribeRelay(relayUrl) {
       if (relayWS) {
         while (timeline.firstChild) {
@@ -148,15 +148,15 @@
         return;
       }
 
-      let afterEose = false;
-      relayWS.addEventListener("open", () => {
+      var afterEose = false;
+      relayWS.addEventListener("open", function() {
         relayWS.send(
           JSON.stringify(["REQ", "motherfucking-sub", { kinds: [1], limit: 50 }])
         );
       });
-      relayWS.addEventListener("message", (ev) => {
+      relayWS.addEventListener("message", function(ev) {
         try {
-          const r2cMsg = JSON.parse(ev.data);
+          var r2cMsg = JSON.parse(ev.data);
           switch (r2cMsg[0]) {
           case "EVENT":
             onEvent(r2cMsg[2], afterEose);
@@ -177,40 +177,40 @@
     }
 
     // subscribing relay
-    const relayUrlInput = document.getElementById("relay-url");
-    const subscribeButton = document.getElementById("subscribe-relay");
-    subscribeButton.addEventListener("click", () => {
+    var relayUrlInput = document.getElementById("relay-url");
+    var subscribeButton = document.getElementById("subscribe-relay");
+    subscribeButton.addEventListener("click", function() {
       subscribeRelay(relayUrlInput.value);
     });
 
     subscribeRelay(relayUrlInput.value);
 
     // create new post
-    const nsecInput = document.getElementById("nsec");
-    const postContentInput = document.getElementById("new-post-content");
-    const sendPostButton = document.getElementById("send-new-post");
-    sendPostButton.addEventListener("click", () => {
-      const nsec = nsecInput.value;
-      const content = postContentInput.value;
+    var nsecInput = document.getElementById("nsec");
+    var postContentInput = document.getElementById("new-post-content");
+    var sendPostButton = document.getElementById("send-new-post");
+    sendPostButton.addEventListener("click", function() {
+      var nsec = nsecInput.value;
+      var content = postContentInput.value;
       if (!nsec || !content) {
         return;
       }
 
       try {
-        const nsecDecoded = window.NostrTools.nip19.decode(nsec);
+        var nsecDecoded = window.NostrTools.nip19.decode(nsec);
         if (nsecDecoded.type !== "nsec") {
           alert("Invalid secret key");
           return;
         }
-        const seckey = nsecDecoded.data;
+        var seckey = nsecDecoded.data;
       
-        const post = {
+        var post = {
           kind: 1,
           content: content,
           created_at: Math.floor(Date.now() / 1000),
           tags: [],
         };
-        const signedPost = window.NostrTools.finalizeEvent(post, seckey);
+        var signedPost = window.NostrTools.finalizeEvent(post, seckey);
         relayWS.send(JSON.stringify(["EVENT", signedPost]));
 
         postContentInput.value = "";
