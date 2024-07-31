@@ -5,56 +5,113 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Motherfucking Nostr Client</title>
   <script src="https://unpkg.com/nostr-tools/lib/nostr.bundle.js"></script>
+  <script>
+    String.prototype.padStart = String.prototype.padStart ? String.prototype.padStart : function(targetLength, padString) {
+      targetLength = Math.floor(targetLength) || 0;
+      if(targetLength < this.length) return String(this);
+
+      padString = padString ? String(padString) : " ";
+
+      var pad = "";
+      var len = targetLength - this.length;
+      var i = 0;
+      while(pad.length < len) {
+          if(!padString[i]) {
+              i = 0;
+          }
+          pad += padString[i];
+          i++;
+      }
+
+      return pad + String(this).slice(0);
+    };
+  </script>
+  <style>
+    ul#timeline {
+      padding-left: 0;
+    }
+    li.post {
+      list-style: none;
+    }
+  </style>
 </head>
 <body>
   <h1>Motherfucking Nostr Client</h1>
   <ul id="timeline"></ul>
 
   <script>
+    function formatTimestamp(date) {
+      return String(date.getHours()).padStart(2, "0") + ":" + String(date.getMinutes()).padStart(2, "0") + ":" + String(date.getSeconds()).padStart(2, "0");
+    }
+
     const timeline = document.getElementById("timeline");
     if (timeline === null) {
       throw new Error("no #timeline");
     }
 
-    const ws = new WebSocket("wss://yabu.me");
+    let afterEose = false;
 
+    function onEvent(nostrEv) {
+      console.log(nostrEv);
+      if (!window.NostrTools.verifyEvent(nostrEv)) {
+        console.error("nostr event with invalid signature:", nostrEv);
+        return;
+      }
+
+      const postView = document.createElement("li");
+      postView.classList.add("post");
+
+      const ts = new Date(nostrEv.created_at * 1000);
+      const tsView = document.createElement("time");
+      tsView.setAttribute("datetime", ts.toISOString());
+      tsView.textContent = "[" + formatTimestamp(ts) + "]";
+
+      const authorView = document.createElement("b");
+      authorView.textContent = nostrEv.pubkey.substring(0, 8);
+
+      const postContent = document.createTextNode(nostrEv.content);
+
+      postView.appendChild(tsView);
+      postView.appendChild(document.createTextNode(" "));
+      postView.appendChild(authorView);
+      postView.appendChild(document.createTextNode(" > "));
+      postView.appendChild(postContent);
+
+      if (afterEose) {
+        timeline.insertBefore(postView, timeline.firstChild);
+      } else {
+        timeline.appendChild(postView);
+      }
+    }
+
+    function onEose() {
+      afterEose = true;
+    }
+
+    const ws = new WebSocket("wss://yabu.me");
     ws.addEventListener("open", () => {
       ws.send(
-        JSON.stringify(["REQ", "motherfucking-sub", { kinds: [1], limit: 30 }])
+        JSON.stringify(["REQ", "motherfucking-sub", { kinds: [1], limit: 50 }])
       );
     });
-
     ws.addEventListener("message", (ev) => {
       try {
         const r2cMsg = JSON.parse(ev.data);
-        if (r2cMsg[0] !== "EVENT") {
+        switch (r2cMsg[0]) {
+        case "EVENT":
+          onEvent(r2cMsg[2]);
+          break;
+        case "EOSE":
+          onEose();
+          break;
+        default:
           console.log(r2cMsg);
-          return;
+          break;
         }
-
-        const nostrEv = r2cMsg[2];
-        if (!window.NostrTools.verifyEvent(nostrEv)) {
-          console.error("nostr event with invalid signature:", nostrEv);
-          return;
-        }
-
-        const postView = document.createElement("li");
-
-        const authorView = document.createElement("b");
-        authorView.appendChild(document.createTextNode(nostrEv.pubkey.substring(0, 8)));
-
-        const postContent = document.createTextNode(nostrEv.content);
-
-        postView.appendChild(authorView);
-        postView.appendChild(document.createTextNode(" > "));
-        postView.appendChild(postContent);
-
-        timeline.insertBefore(postView, timeline.firstChild);
       } catch (err) {
         console.error(err);
       }
     });
-
     ws.addEventListener("close", () => {
       alert("Relay connection closed");
     });
