@@ -60,6 +60,8 @@
       return String(date.getHours()).padStart(2, "0") + ":" + String(date.getMinutes()).padStart(2, "0") + ":" + String(date.getSeconds()).padStart(2, "0");
     }
 
+    const urlPattern = /(https?:\/\/[^\s]+)/g;
+
     const timeline = document.getElementById("timeline");
     if (timeline === null) {
       throw new Error("no #timeline");
@@ -84,13 +86,29 @@
       const authorColor = parseInt(nostrEv.pubkey.substring(0, 2), 16) * 360 / 256;
       authorView.style.color = "hsl(" + authorColor + ", 90%, 45%)";
 
-      const postContent = document.createTextNode(nostrEv.content);
+      const contentSplitByUrl = nostrEv.content.split(urlPattern);
+      const contentElems = contentSplitByUrl
+      .filter(function(s) {
+        return s.length > 0;
+      })
+      .map(function(s) {
+        if (s.indexOf("http") === 0) {
+          const a = document.createElement("a");
+          a.href = s;
+          a.target = "_blank";
+          a.rel = "noreferrer";
+          a.textContent = s;
+          return a;
+        } else {
+          return document.createTextNode(s);
+        }
+      });
 
       postView.appendChild(tsView);
       postView.appendChild(document.createTextNode(" "));
       postView.appendChild(authorView);
       postView.appendChild(document.createTextNode(" > "));
-      postView.appendChild(postContent);
+      postView.append(...contentElems);
 
       if (afterEose) {
         timeline.insertBefore(postView, timeline.firstChild);
