@@ -35,6 +35,7 @@
         const nostrEv = r2cMsg[2];
         if (!window.NostrTools.verifyEvent(nostrEv)) {
           console.error("nostr event with invalid signature:", nostrEv);
+          return;
         }
 
         const postView = document.createElement("li");
