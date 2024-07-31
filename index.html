@@ -20,7 +20,7 @@
 
     ws.addEventListener("open", () => {
       ws.send(
-        JSON.stringify(["REQ", "motherfucking-sub", { kinds: [1], since: Math.floor(Date.now() / 1000) }])
+        JSON.stringify(["REQ", "motherfucking-sub", { kinds: [1], limit: 30 }])
       );
     });
 
