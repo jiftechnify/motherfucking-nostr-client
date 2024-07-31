@@ -4,6 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Motherfucking Nostr Client</title>
+  <script src="https://cdn.jsdelivr.net/npm/@nikolat/makibishi@0.1.1"></script>
   <script src="https://unpkg.com/nostr-tools/lib/nostr.bundle.js"></script>
   <script>
     String.prototype.padStart = String.prototype.padStart ? String.prototype.padStart : function(targetLength, padString) {
@@ -36,7 +37,11 @@
   </style>
 </head>
 <body>
-  <h1>Motherfucking Nostr Client</h1>
+  <h1>
+    Motherfucking Nostr Client
+    <span class="makibishi" data-allow-anonymous-reaction="true"></span>
+  </h1>
+    
 
   <label for="relay-url">Relay URL:</label>
   <input id="relay-url" type="text" value="wss://yabu.me">
@@ -121,18 +126,18 @@
       alert("Relay connection closed");
     }
 
-    let ws;
+    let relayWS;
     function subscribeRelay(relayUrl) {
-      if (ws) {
+      if (relayWS) {
         while (timeline.firstChild) {
           timeline.removeChild(timeline.firstChild);
         }
-        ws.removeEventListener("close", onWSClose);
-        ws.close();
+        relayWS.removeEventListener("close", onWSClose);
+        relayWS.close();
       }
       
       try {
-        ws = new WebSocket(relayUrl);
+        relayWS = new WebSocket(relayUrl);
       } catch (err) {
         console.error("failed to connect to relay:", err);
         alert("Failed to connect to relay:", relayUrl);
@@ -140,12 +145,12 @@
       }
 
       let afterEose = false;
-      ws.addEventListener("open", () => {
-        ws.send(
+      relayWS.addEventListener("open", () => {
+        relayWS.send(
           JSON.stringify(["REQ", "motherfucking-sub", { kinds: [1], limit: 50 }])
         );
       });
-      ws.addEventListener("message", (ev) => {
+      relayWS.addEventListener("message", (ev) => {
         try {
           const r2cMsg = JSON.parse(ev.data);
           switch (r2cMsg[0]) {
@@ -164,7 +169,7 @@
         }
       });
 
-      ws.addEventListener("close", onWSClose);
+      relayWS.addEventListener("close", onWSClose);
     }
 
     // subscribing relay
@@ -202,7 +207,7 @@
           tags: [],
         };
         const signedPost = window.NostrTools.finalizeEvent(post, seckey);
-        ws.send(JSON.stringify(["EVENT", signedPost]));
+        relayWS.send(JSON.stringify(["EVENT", signedPost]));
 
         postContentInput.value = "";
       } catch (err) {
