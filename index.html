@@ -37,6 +37,11 @@
 </head>
 <body>
   <h1>Motherfucking Nostr Client</h1>
+
+  <label for="relay-url">Relay URL:</label>
+  <input id="relay-url" type="text" value="wss://yabu.me">
+  <button id="subscribe-relay">Subscribe</button>
+
   <ul id="timeline"></ul>
 
   <script>
@@ -49,9 +54,7 @@
       throw new Error("no #timeline");
     }
 
-    let afterEose = false;
-
-    function onEvent(nostrEv) {
+    function onEvent(nostrEv, afterEose) {
       if (!window.NostrTools.verifyEvent(nostrEv)) {
         console.error("nostr event with invalid signature:", nostrEv);
         return;
@@ -83,37 +86,64 @@
       }
     }
 
-    function onEose() {
-      afterEose = true;
+    function onWSClose() {
+      alert("Relay connection closed");
     }
 
-    const ws = new WebSocket("wss://yabu.me");
-    ws.addEventListener("open", () => {
-      ws.send(
-        JSON.stringify(["REQ", "motherfucking-sub", { kinds: [1], limit: 50 }])
-      );
-    });
-    ws.addEventListener("message", (ev) => {
-      try {
-        const r2cMsg = JSON.parse(ev.data);
-        switch (r2cMsg[0]) {
-        case "EVENT":
-          onEvent(r2cMsg[2]);
-          break;
-        case "EOSE":
-          onEose();
-          break;
-        default:
-          console.log(r2cMsg);
-          break;
+    let ws;
+    function subscribeRelay(relayUrl) {
+      if (ws) {
+        while (timeline.firstChild) {
+          timeline.removeChild(timeline.firstChild);
         }
-      } catch (err) {
-        console.error(err);
+        ws.removeEventListener("close", onWSClose);
+        ws.close();
       }
+      
+      try {
+        ws = new WebSocket(relayUrl);
+      } catch (err) {
+        console.error("failed to connect to relay:", err);
+        alert("Failed to connect to relay:", relayUrl);
+        return;
+      }
+
+      let afterEose = false;
+      ws.addEventListener("open", () => {
+        ws.send(
+          JSON.stringify(["REQ", "motherfucking-sub", { kinds: [1], limit: 50 }])
+        );
+      });
+      ws.addEventListener("message", (ev) => {
+        try {
+          const r2cMsg = JSON.parse(ev.data);
+          switch (r2cMsg[0]) {
+          case "EVENT":
+            onEvent(r2cMsg[2], afterEose);
+            break;
+          case "EOSE":
+            afterEose = true;
+            break;
+          default:
+            console.log(r2cMsg);
+            break;
+          }
+        } catch (err) {
+          console.error(err);
+        }
+      });
+
+      ws.addEventListener("close", onWSClose);
+    }
+
+    const relayUrlInput = document.getElementById("relay-url");
+
+    const subscribeButton = document.getElementById("subscribe-relay");
+    subscribeButton.addEventListener("click", () => {
+      subscribeRelay(relayUrlInput.value);
     });
-    ws.addEventListener("close", () => {
-      alert("Relay connection closed");
-    });
+
+    subscribeRelay(relayUrlInput.value);
   </script>
 </body>
 </html>
