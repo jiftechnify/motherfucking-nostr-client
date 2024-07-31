@@ -81,6 +81,8 @@
 
       const authorView = document.createElement("b");
       authorView.textContent = nostrEv.pubkey.substring(0, 8);
+      const authorColor = parseInt(nostrEv.pubkey.substring(0, 2), 16) * 360 / 256;
+      authorView.style.color = "hsl(" + authorColor + ", 90%, 45%)";
 
       const postContent = document.createTextNode(nostrEv.content);
 
