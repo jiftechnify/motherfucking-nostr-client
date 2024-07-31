@@ -11,54 +11,52 @@
   <ul id="timeline"></ul>
 
   <script>
-    (() => {
-    const timeline = document.getElementById("timeline")
+    const timeline = document.getElementById("timeline");
     if (timeline === null) {
-      console.error("no #timeline");
-      return;
+      throw new Error("no #timeline");
     }
-    
-    const ws = new WebSocket("wss://yabu.me")
 
-    ws.addEventListener('open', () => {
-      ws.send(JSON.stringify(["REQ", "motherfucking-sub", { kinds: [1], since: Math.floor(Date.now() / 1000) }]));
-    })
+    const ws = new WebSocket("wss://yabu.me");
 
-    ws.addEventListener('message', (ev) => {
-      console.log(ev);
+    ws.addEventListener("open", () => {
+      ws.send(
+        JSON.stringify(["REQ", "motherfucking-sub", { kinds: [1], since: Math.floor(Date.now() / 1000) }])
+      );
+    });
+
+    ws.addEventListener("message", (ev) => {
       try {
         const r2cMsg = JSON.parse(ev.data);
-        if (r2cMsg[0] !== 'EVENT') {
+        if (r2cMsg[0] !== "EVENT") {
           console.log(r2cMsg);
-          return
+          return;
         }
 
         const nostrEv = r2cMsg[2];
         if (!window.NostrTools.verifyEvent(nostrEv)) {
-          console.error("nostr event with invalid signature:", nostrEv)
+          console.error("nostr event with invalid signature:", nostrEv);
         }
-        
-        const postView = document.createElement("li")
 
-        const authorView = document.createElement("b")
-        authorView.appendChild(document.createTextNode(nostrEv.pubkey))
+        const postView = document.createElement("li");
 
-        const postContent =  document.createTextNode(nostrEv.content)
+        const authorView = document.createElement("b");
+        authorView.appendChild(document.createTextNode(nostrEv.pubkey));
 
-        postView.appendChild(authorView)
-        postView.appendChild(document.createTextNode(" > "))
-        postView.appendChild(postContent)
+        const postContent = document.createTextNode(nostrEv.content);
 
-        timeline.insertBefore(postView, timeline.firstChild)
+        postView.appendChild(authorView);
+        postView.appendChild(document.createTextNode(" > "));
+        postView.appendChild(postContent);
+
+        timeline.insertBefore(postView, timeline.firstChild);
       } catch (err) {
         console.error(err);
       }
     });
 
-    ws.addEventListener('close', () => {
-      alert("Relay connection closed")
-    })
-  })();
+    ws.addEventListener("close", () => {
+      alert("Relay connection closed");
+    });
   </script>
 </body>
 </html>
