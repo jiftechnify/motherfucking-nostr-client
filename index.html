@@ -42,6 +42,17 @@
   <input id="relay-url" type="text" value="wss://yabu.me">
   <button id="subscribe-relay">Subscribe</button>
 
+  <hr />
+
+  <div>
+    <label for="nsec">Secret Key:</label>
+    <input id="nsec" type="password" placeholder="nsec1...">
+  </div>
+  <textarea id="new-post-content" rows="4" cols="50" autocomplete="off" placeholder="What the fuck is up?"></textarea>
+  <button id="send-new-post">Post</button>
+
+  <hr />
+
   <ul id="timeline"></ul>
 
   <script>
@@ -136,14 +147,49 @@
       ws.addEventListener("close", onWSClose);
     }
 
+    // subscribing relay
     const relayUrlInput = document.getElementById("relay-url");
-
     const subscribeButton = document.getElementById("subscribe-relay");
     subscribeButton.addEventListener("click", () => {
       subscribeRelay(relayUrlInput.value);
     });
 
     subscribeRelay(relayUrlInput.value);
+
+    // create new post
+    const nsecInput = document.getElementById("nsec");
+    const postContentInput = document.getElementById("new-post-content");
+    const sendPostButton = document.getElementById("send-new-post");
+    sendPostButton.addEventListener("click", () => {
+      const nsec = nsecInput.value;
+      const content = postContentInput.value;
+      if (!nsec || !content) {
+        return;
+      }
+
+      try {
+        const nsecDecoded = window.NostrTools.nip19.decode(nsec);
+        if (nsecDecoded.type !== "nsec") {
+          alert("Invalid secret key");
+          return;
+        }
+        const seckey = nsecDecoded.data;
+      
+        const post = {
+          kind: 1,
+          content: content,
+          created_at: Math.floor(Date.now() / 1000),
+          tags: [],
+        };
+        const signedPost = window.NostrTools.finalizeEvent(post, seckey);
+        ws.send(JSON.stringify(["EVENT", signedPost]));
+
+        postContentInput.value = "";
+      } catch (err) {
+        console.error(err);
+        alert("Post failed");
+      }
+    });
   </script>
 </body>
 </html>
