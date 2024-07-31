@@ -52,7 +52,6 @@
     let afterEose = false;
 
     function onEvent(nostrEv) {
-      console.log(nostrEv);
       if (!window.NostrTools.verifyEvent(nostrEv)) {
         console.error("nostr event with invalid signature:", nostrEv);
         return;
