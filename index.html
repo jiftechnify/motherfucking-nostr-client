@@ -69,7 +69,7 @@
       return String(date.getHours()).padStart(2, "0") + ":" + String(date.getMinutes()).padStart(2, "0") + ":" + String(date.getSeconds()).padStart(2, "0");
     }
 
-    var urlPattern = /(https?:\/\/[^\s]+)/g;
+    var urlPattern = /(https?:\/\/[^\s]+)/;
 
     var timeline = document.getElementById("timeline");
     if (timeline === null) {
@@ -117,7 +117,9 @@
       postView.appendChild(document.createTextNode(" "));
       postView.appendChild(authorView);
       postView.appendChild(document.createTextNode(" > "));
-      postView.append(...contentElems);
+      contentElems.forEach(function(e) {
+        postView.appendChild(e);
+      });
 
       if (afterEose) {
         timeline.insertBefore(postView, timeline.firstChild);
