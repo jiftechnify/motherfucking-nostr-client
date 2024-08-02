@@ -80,6 +80,8 @@
 
   <ul id="timeline"></ul>
 
+  <button type="button" id="load-more" hidden>More fuckin' posts please</button>
+
   <script>
     function formatTimestamp(date) {
       return String(date.getHours()).padStart(2, "0") + ":" + String(date.getMinutes()).padStart(2, "0") + ":" + String(date.getSeconds()).padStart(2, "0");
@@ -158,11 +160,13 @@
       throw new Error("no #timeline");
     }
 
-    function onEvent(nostrEv, afterEose) {
+    function onEvent(nostrEv, prepend) {
       if (!window.NostrTools.verifyEvent(nostrEv)) {
         console.error("nostr event with invalid signature:", nostrEv);
         return;
       }
+
+      oldestCreatedAt = Math.min(oldestCreatedAt, nostrEv.created_at);
 
       var postView = document.createElement("li");
       postView.classList.add("post");
@@ -187,7 +191,7 @@
         postView.appendChild(e);
       });
 
-      if (afterEose) {
+      if (prepend) {
         timeline.insertBefore(postView, timeline.firstChild);
       } else {
         timeline.appendChild(postView);
@@ -196,6 +200,16 @@
 
     function onWSClose() {
       alert("Relay connection closed");
+    }
+
+    var MAIN_SUB_ID = "motherfuncking-main-sub";
+    var MORE_POSTS_SUB_ID = "motherfuncking-more-posts";
+
+    function isKnownSubId(subId) {
+      return subId === MAIN_SUB_ID || subId === MORE_POSTS_SUB_ID;
+    }
+    function shouldPrependPost(subId, afterEose) {
+      return subId === MAIN_SUB_ID && afterEose;
     }
 
     var relayWS;
@@ -217,21 +231,34 @@
       }
 
       var afterEose = false;
+
       relayWS.addEventListener("open", function() {
         relayWS.send(
-          JSON.stringify(["REQ", "motherfucking-sub", { kinds: [1], limit: 50 }])
+          JSON.stringify(["REQ", MAIN_SUB_ID, { kinds: [1], limit: 50 }])
         );
       });
+
       relayWS.addEventListener("message", function(ev) {
         try {
           var r2cMsg = JSON.parse(ev.data);
           switch (r2cMsg[0]) {
           case "EVENT":
-            onEvent(r2cMsg[2], afterEose);
+            var subId = r2cMsg[1];
+            if (!isKnownSubId(subId)) {
+              console.error("unknown subId:", subId);
+              return;
+            }
+            onEvent(r2cMsg[2], shouldPrependPost(subId, afterEose));
             break;
+
           case "EOSE":
-            afterEose = true;
+            var subId = r2cMsg[1];
+            if (subId === MAIN_SUB_ID) {
+              afterEose = true;
+            }
+            loadMoreButton.hidden = false;
             break;
+            
           default:
             console.log(r2cMsg);
             break;
@@ -251,13 +278,14 @@
       subscribeRelay(relayUrlInput.value);
     });
 
+    // initial subscription
     subscribeRelay(relayUrlInput.value);
 
     // create new post
     var nsecInput = document.getElementById("nsec");
     var postContentInput = document.getElementById("new-post-content");
     var sendPostButton = document.getElementById("send-new-post");
-    sendPostButton.addEventListener("click", function() {
+    function sendeNewPost() {
       var nsec = nsecInput.value;
       var content = postContentInput.value;
       if (!nsec || !content) {
@@ -286,7 +314,22 @@
         console.error(err);
         alert("Post failed");
       }
-    });
+    }
+    sendPostButton.addEventListener("click", sendeNewPost);
+    
+    // load more posts
+    var oldestCreatedAt = Number.MAX_VALUE;
+    var loadMoreButton = document.getElementById("load-more");
+    function fetchMorePosts() {
+      if (!relayWS) {
+        return;
+      }
+      loadMoreButton.hidden = true;
+      relayWS.send(
+        JSON.stringify(["REQ", MORE_POSTS_SUB_ID, { kinds: [1], limit: 50, until: oldestCreatedAt - 1 }])
+      );
+    }
+    loadMoreButton.addEventListener("click", fetchMorePosts);
   </script>
 </body>
 </html>
