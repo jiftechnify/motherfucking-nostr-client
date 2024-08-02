@@ -35,8 +35,15 @@
     ul#timeline {
       padding-left: 0;
     }
-    li.post {
+    li.event {
       list-style: none;
+    }
+    li.event.event-repost {
+      background-color: hsl(130, 100%, 95%);
+    }
+
+    span.author {
+      font-weight: bold;
     }
 
     button#load-more.loading {
@@ -44,7 +51,7 @@
     }
 
     a.nostr-ref {
-      background-color: #f8f2ff;
+      background-color: hsl(268, 100%, 98%);
     }
     span.unsupported-nostr-ref {
       color: #999;
@@ -53,6 +60,10 @@
     img.custom-emoji {
       vertical-align: middle;
       height: 1.6rem;
+    }
+
+    span.repost-prefix {
+      font-style: italic;
     }
   </style>
 </head>
@@ -91,6 +102,32 @@
       return String(date.getHours()).padStart(2, "0") + ":" + String(date.getMinutes()).padStart(2, "0") + ":" + String(date.getSeconds()).padStart(2, "0");
     }
 
+    function baseEventView() {
+      var li = document.createElement("li");
+      li.classList.add("event");
+      return li;
+    }
+
+    function metadataView(nostrEv) {
+      var ts = new Date(nostrEv.created_at * 1000);
+      var tsView = document.createElement("time");
+      tsView.setAttribute("datetime", ts.toISOString());
+      tsView.textContent = "[" + formatTimestamp(ts) + "]";
+
+      var authorView = document.createElement("span");
+      authorView.textContent = nostrEv.pubkey.substring(0, 8);
+      authorView.classList.add("author");
+      var authorColor = parseInt(nostrEv.pubkey.substring(0, 2), 16) * 360 / 256;
+      authorView.style.color = "hsl(" + authorColor + ", 90%, 45%)";
+
+      var view = document.createElement("span");
+      view.appendChild(tsView);
+      view.appendChild(document.createTextNode(" "));
+      view.appendChild(authorView);
+      view.appendChild(document.createTextNode(" > "));
+      return view;
+    }
+
     var contentRefPattern = /(https?:\/\/[^\s]+)|(nostr:[^\s]+)|(:[_a-zA-Z0-9]+:)/;
     function urlLink(url) {
       var a = document.createElement("a");
@@ -107,7 +144,16 @@
         span.classList.add("unsupported-nostr-ref");
         return span;
     }
-    function nostrRefLink(ref) {
+    function nostrRefLink(nip19Id, idType) {
+      var a = document.createElement("a");
+      a.href = "https://njump.me/" + nip19Id;
+      a.target = "_blank";
+      a.rel = "noreferrer";
+      a.textContent = "nostr:" + nip19Id.substring(0, idType.length + 8) + "...";
+      a.classList.add("nostr-ref");
+      return a;
+    }
+    function nostrRef(ref) {
       var nip19Id = ref.substring(6); // trim "nostr:"
 
       var dec;
@@ -118,13 +164,7 @@
         return unsupportedNostrRef();
       }
 
-      var a = document.createElement("a");
-      a.href = "https://njump.me/" + nip19Id;
-      a.target = "_blank";
-      a.rel = "noreferrer";
-      a.textContent = ref.substring(0, 6 + dec.type.length + 8) + "...";
-      a.classList.add("nostr-ref");
-      return a;
+      return nostrRefLink(nip19Id, dec.type);
     }
 
     function customEmoji(shortcode, nostrEv) {
@@ -141,8 +181,12 @@
       }
       return document.createTextNode(shortcode);
     }
-    function contentElements(nostrEv) {
-      return nostrEv.content.split(contentRefPattern)
+
+    function postEventView(nostrEv) {
+      var view = baseEventView();
+      view.classList.add("event-post");
+
+      var contentElems = nostrEv.content.split(contentRefPattern)
         .filter(function(s) {
           return s !== undefined && s.length > 0;
         })
@@ -150,55 +194,84 @@
           if (s.indexOf("http") === 0) {
             return urlLink(s);
           } else if (s.indexOf("nostr:") === 0) {
-            return nostrRefLink(s);
+            return nostrRef(s);
           } else if (s.charAt(0) === ":" && s.charAt(s.length - 1) === ":") {
             return customEmoji(s, nostrEv);
           } else {
             return document.createTextNode(s);
           }
         });
+
+      view.appendChild(metadataView(nostrEv));
+      contentElems.forEach(function(el) {
+        view.appendChild(el);
+      });
+      return view;
     }
 
-    var timeline = document.getElementById("timeline");
-    if (timeline === null) {
-      throw new Error("no #timeline");
+    function repostEventView(nostrEv) {
+      var targetPostId;
+      for (var i = 0; i < nostrEv.tags.length; i++) {
+        var tag = nostrEv.tags[i];
+        if (tag[0] === "e" && typeof tag[1] === "string") {
+          targetPostId = tag[1];
+          break;
+        }
+      }
+      if (targetPostId === undefined) {
+        console.error("repost without target post ID:", nostrEv);
+        return undefined;
+      }
+
+      var view = baseEventView();
+      view.classList.add("event-repost");
+
+      var repostPrefix = document.createElement("span");
+      repostPrefix.textContent = "Reposted: ";
+      repostPrefix.classList.add("repost-prefix");
+      
+      var nevent = window.NostrTools.nip19.neventEncode({ id: targetPostId });
+      var repostLink = nostrRefLink(nevent, "nevent");
+
+      view.appendChild(metadataView(nostrEv));
+      view.appendChild(repostPrefix);
+      view.appendChild(repostLink);
+      return view;
     }
 
+    var supportedKinds = [1, 6];
     function onEvent(nostrEv, prepend) {
       if (!window.NostrTools.verifyEvent(nostrEv)) {
         console.error("nostr event with invalid signature:", nostrEv);
         return;
       }
+      if (supportedKinds.indexOf(nostrEv.kind) === -1) {
+        console.error("unsupported kind:", nostrEv.kind);
+        return;
+      }
 
       oldestCreatedAt = Math.min(oldestCreatedAt, nostrEv.created_at);
 
-      var postView = document.createElement("li");
-      postView.classList.add("post");
-
-      var ts = new Date(nostrEv.created_at * 1000);
-      var tsView = document.createElement("time");
-      tsView.setAttribute("datetime", ts.toISOString());
-      tsView.textContent = "[" + formatTimestamp(ts) + "]";
-
-      var authorView = document.createElement("b");
-      authorView.textContent = nostrEv.pubkey.substring(0, 8);
-      var authorColor = parseInt(nostrEv.pubkey.substring(0, 2), 16) * 360 / 256;
-      authorView.style.color = "hsl(" + authorColor + ", 90%, 45%)";
-
-      var contentElems = contentElements(nostrEv);
-
-      postView.appendChild(tsView);
-      postView.appendChild(document.createTextNode(" "));
-      postView.appendChild(authorView);
-      postView.appendChild(document.createTextNode(" > "));
-      contentElems.forEach(function(e) {
-        postView.appendChild(e);
-      });
+      var eventView;
+      switch (nostrEv.kind) {
+      case 1:
+        eventView = postEventView(nostrEv);
+        break;
+      case 6:
+        eventView = repostEventView(nostrEv);
+        break;
+      default:
+        // unreachable
+        return;
+      }
+      if (eventView === undefined) {
+        return;
+      }
 
       if (prepend) {
-        timeline.insertBefore(postView, timeline.firstChild);
+        timeline.insertBefore(eventView, timeline.firstChild);
       } else {
-        timeline.appendChild(postView);
+        timeline.appendChild(eventView);
       }
     }
 
@@ -238,7 +311,7 @@
 
       relayWS.addEventListener("open", function() {
         relayWS.send(
-          JSON.stringify(["REQ", MAIN_SUB_ID, { kinds: [1], limit: 50 }])
+          JSON.stringify(["REQ", MAIN_SUB_ID, { kinds: [1, 6], limit: 50 }])
         );
       });
 
@@ -273,6 +346,11 @@
       });
 
       relayWS.addEventListener("close", onWSClose);
+    }
+
+    var timeline = document.getElementById("timeline");
+    if (timeline === null) {
+      throw new Error("no #timeline");
     }
 
     // subscribing relay
@@ -330,7 +408,7 @@
       }
       loadMoreButton.classList.add("loading");
       relayWS.send(
-        JSON.stringify(["REQ", MORE_POSTS_SUB_ID, { kinds: [1], limit: 50, until: oldestCreatedAt - 1 }])
+        JSON.stringify(["REQ", MORE_POSTS_SUB_ID, { kinds: [1, 6], limit: 50, until: oldestCreatedAt - 1 }])
       );
     }
     loadMoreButton.addEventListener("click", fetchMorePosts);
