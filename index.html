@@ -138,12 +138,6 @@
       return a;
     }
 
-    function unsupportedNostrRef() {
-      var span = document.createElement("span");
-        span.textContent = "(Unsupported Nostr Ref)";
-        span.classList.add("unsupported-nostr-ref");
-        return span;
-    }
     function nostrRefLink(nip19Id, idType) {
       var a = document.createElement("a");
       a.href = "https://njump.me/" + nip19Id;
@@ -161,7 +155,7 @@
         dec = window.NostrTools.nip19.decode(nip19Id);
       } catch (err) {
         console.error("failed to decode NIP-19 ID:", err);
-        return unsupportedNostrRef();
+        return document.createTextNode(ref);
       }
 
       return nostrRefLink(nip19Id, dec.type);
