@@ -39,6 +39,10 @@
       list-style: none;
     }
 
+    button#load-more.loading {
+      visibility: hidden;
+    }
+
     a.nostr-ref {
       background-color: #f8f2ff;
     }
@@ -80,7 +84,7 @@
 
   <ul id="timeline"></ul>
 
-  <button type="button" id="load-more" hidden>More fuckin' posts please</button>
+  <button type="button" id="load-more" class="loading">More fuckin' posts please</button>
 
   <script>
     function formatTimestamp(date) {
@@ -256,7 +260,7 @@
             if (subId === MAIN_SUB_ID) {
               afterEose = true;
             }
-            loadMoreButton.hidden = false;
+            loadMoreButton.classList.remove("loading");
             break;
             
           default:
@@ -324,7 +328,7 @@
       if (!relayWS) {
         return;
       }
-      loadMoreButton.hidden = true;
+      loadMoreButton.classList.add("loading");
       relayWS.send(
         JSON.stringify(["REQ", MORE_POSTS_SUB_ID, { kinds: [1], limit: 50, until: oldestCreatedAt - 1 }])
       );
