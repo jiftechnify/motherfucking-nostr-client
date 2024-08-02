@@ -28,11 +28,27 @@
     };
   </script>
   <style>
+    html {
+      line-height: 1.4;
+    }
+
     ul#timeline {
       padding-left: 0;
     }
     li.post {
       list-style: none;
+    }
+
+    a.nostr-ref {
+      background-color: #f8f2ff;
+    }
+    span.unsupported-nostr-ref {
+      color: #999;
+    }
+
+    img.custom-emoji {
+      vertical-align: middle;
+      height: 1.6rem;
     }
   </style>
 </head>
@@ -69,7 +85,73 @@
       return String(date.getHours()).padStart(2, "0") + ":" + String(date.getMinutes()).padStart(2, "0") + ":" + String(date.getSeconds()).padStart(2, "0");
     }
 
-    var urlPattern = /(https?:\/\/[^\s]+)/;
+    var contentRefPattern = /(https?:\/\/[^\s]+)|(nostr:[^\s]+)|(:[_a-zA-Z0-9]+:)/;
+    function urlLink(url) {
+      var a = document.createElement("a");
+      a.href = url;
+      a.target = "_blank";
+      a.rel = "noreferrer";
+      a.textContent = url;
+      return a;
+    }
+
+    function unsupportedNostrRef() {
+      var span = document.createElement("span");
+        span.textContent = "(Unsupported Nostr Ref)";
+        span.classList.add("unsupported-nostr-ref");
+        return span;
+    }
+    function nostrRefLink(ref) {
+      var nip19Id = ref.substring(6); // trim "nostr:"
+
+      var dec;
+      try {
+        dec = window.NostrTools.nip19.decode(nip19Id);
+      } catch (err) {
+        console.error("failed to decode NIP-19 ID:", err);
+        return unsupportedNostrRef();
+      }
+
+      var a = document.createElement("a");
+      a.href = "https://njump.me/" + nip19Id;
+      a.target = "_blank";
+      a.rel = "noreferrer";
+      a.textContent = ref.substring(0, 6 + dec.type.length + 8) + "...";
+      a.classList.add("nostr-ref");
+      return a;
+    }
+
+    function customEmoji(shortcode, nostrEv) {
+      var emojiName = shortcode.substring(1, shortcode.length - 1);
+      for (var i = 0; i < nostrEv.tags.length; i++) {
+        var tag = nostrEv.tags[i];
+        if (tag[0] === "emoji" && tag[1] === emojiName && typeof tag[2] === "string") {
+          var img = document.createElement('img');
+          img.src = tag[2];
+          img.alt = shortcode;
+          img.classList.add("custom-emoji");
+          return img;
+        }
+      }
+      return document.createTextNode(shortcode);
+    }
+    function contentElements(nostrEv) {
+      return nostrEv.content.split(contentRefPattern)
+        .filter(function(s) {
+          return s !== undefined && s.length > 0;
+        })
+        .map(function(s) {
+          if (s.indexOf("http") === 0) {
+            return urlLink(s);
+          } else if (s.indexOf("nostr:") === 0) {
+            return nostrRefLink(s);
+          } else if (s.charAt(0) === ":" && s.charAt(s.length - 1) === ":") {
+            return customEmoji(s, nostrEv);
+          } else {
+            return document.createTextNode(s);
+          }
+        });
+    }
 
     var timeline = document.getElementById("timeline");
     if (timeline === null) {
@@ -95,23 +177,7 @@
       var authorColor = parseInt(nostrEv.pubkey.substring(0, 2), 16) * 360 / 256;
       authorView.style.color = "hsl(" + authorColor + ", 90%, 45%)";
 
-      var contentSplitByUrl = nostrEv.content.split(urlPattern);
-      var contentElems = contentSplitByUrl
-      .filter(function(s) {
-        return s.length > 0;
-      })
-      .map(function(s) {
-        if (s.indexOf("http") === 0) {
-          var a = document.createElement("a");
-          a.href = s;
-          a.target = "_blank";
-          a.rel = "noreferrer";
-          a.textContent = s;
-          return a;
-        } else {
-          return document.createTextNode(s);
-        }
-      });
+      var contentElems = contentElements(nostrEv);
 
       postView.appendChild(tsView);
       postView.appendChild(document.createTextNode(" "));
