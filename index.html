@@ -128,14 +128,45 @@
       return view;
     }
 
-    var contentRefPattern = /(https?:\/\/[^\s]+)|(nostr:[^\s]+)|(:[_a-zA-Z0-9]+:)/;
+    var contentRefPattern = /(https?:\/\/[^\s]+)|(nostr:[\w]+1[ac-hj-np-z02-9]+)|(:[_a-zA-Z0-9]+:)/;  
+
+    function indexOfFirstUnmatchingCloseParen(url) {
+      var nest = 0;
+      for (var i = 0; i < url.length; i++) {
+        var c = url.charAt(i);
+        if (c === "(") {
+          nest++;
+        } else if (c === ")") {
+          if (nest <= 0) {
+            return i;
+          }
+          nest--;
+        }
+      }
+      return -1;
+    }
+
     function urlLink(url) {
+      var splitIdx = indexOfFirstUnmatchingCloseParen(url);
+      var finalUrl = splitIdx === -1 ? url : url.substring(0, splitIdx);
+      var rest = splitIdx === -1 ? "" : url.substring(splitIdx);
+
       var a = document.createElement("a");
-      a.href = url;
+      a.href = finalUrl;
       a.target = "_blank";
       a.rel = "noreferrer";
-      a.textContent = url;
-      return a;
+      a.textContent = finalUrl;
+
+      if (rest.length === 0) {
+        return a;
+      }
+      // FIXME: eliminate the auxiliary <span> used to bundle multiple nodes into a single element
+      var aux = document.createElement("span");
+      var restSpan = document.createElement("span");
+      restSpan.textContent = rest;
+      aux.appendChild(a);
+      aux.appendChild(restSpan);
+      return aux;
     }
 
     function nostrRefLink(nip19Id, idType) {
