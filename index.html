@@ -108,22 +108,28 @@
       return li;
     }
 
+    function timestampView(unixtime) {
+      var ts = new Date(unixtime * 1000);
+      var timeElem = document.createElement("time");
+      timeElem.setAttribute("datetime", ts.toISOString());
+      timeElem.textContent = "[" + formatTimestamp(ts) + "]";
+      return timeElem;
+    }
+
+    function authorView(pubkey) {
+      var span = document.createElement("span");
+      span.textContent = pubkey.substring(0, 8);
+      span.classList.add("author");
+      var authorColor = parseInt(pubkey.substring(0, 2), 16) * 360 / 256;
+      span.style.color = "hsl(" + authorColor + ", 90%, 45%)";
+      return span;
+    }
+
     function metadataView(nostrEv) {
-      var ts = new Date(nostrEv.created_at * 1000);
-      var tsView = document.createElement("time");
-      tsView.setAttribute("datetime", ts.toISOString());
-      tsView.textContent = "[" + formatTimestamp(ts) + "]";
-
-      var authorView = document.createElement("span");
-      authorView.textContent = nostrEv.pubkey.substring(0, 8);
-      authorView.classList.add("author");
-      var authorColor = parseInt(nostrEv.pubkey.substring(0, 2), 16) * 360 / 256;
-      authorView.style.color = "hsl(" + authorColor + ", 90%, 45%)";
-
       var view = document.createElement("span");
-      view.appendChild(tsView);
+      view.appendChild(timestampView(nostrEv.created_at));
       view.appendChild(document.createTextNode(" "));
-      view.appendChild(authorView);
+      view.appendChild(authorView(nostrEv.pubkey));
       view.appendChild(document.createTextNode(" > "));
       return view;
     }
@@ -236,10 +242,16 @@
 
     function repostEventView(nostrEv) {
       var targetPostId;
+      var targetPostAuthor;
       for (var i = 0; i < nostrEv.tags.length; i++) {
         var tag = nostrEv.tags[i];
         if (tag[0] === "e" && typeof tag[1] === "string") {
           targetPostId = tag[1];
+        }
+        if (tag[0] === "p" && typeof tag[1] === "string") {
+          targetPostAuthor = tag[1];
+        }
+        if (targetPostId && targetPostAuthor) {
           break;
         }
       }
@@ -261,6 +273,11 @@
       view.appendChild(metadataView(nostrEv));
       view.appendChild(repostPrefix);
       view.appendChild(repostLink);
+
+      if (targetPostAuthor) {
+        view.appendChild(document.createTextNode(" by "));
+        view.appendChild(authorView(targetPostAuthor));
+      }
       return view;
     }
 
