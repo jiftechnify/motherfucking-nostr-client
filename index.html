@@ -43,19 +43,26 @@
       background-color: hsl(130, 100%, 95%);
     }
 
-    span.author {
-      font-weight: bold;
-    }
-
     button#load-more.loading {
       visibility: hidden;
     }
 
-    a.nostr-ref {
+    .nostr-ref {
       background-color: hsl(268, 100%, 98%);
     }
-    span.unsupported-nostr-ref {
-      color: #999;
+
+    .pubkey-ref {
+      font-weight: bold;
+    }
+    a.pubkey-ref {
+      text-decoration: none;
+    }
+    a.pubkey-ref:hover {
+      text-decoration: underline;
+    }
+
+    .pubkey-mention::before {
+      content: "@";
     }
 
     img.custom-emoji {
@@ -117,20 +124,27 @@
       return timeElem;
     }
 
-    function authorView(pubkey) {
-      var span = document.createElement("span");
-      span.textContent = pubkey.substring(0, 8);
-      span.classList.add("author");
+    function pubkeyView(pubkey) {
+      var npub = window.NostrTools.nip19.npubEncode(pubkey);
+
+      var a = document.createElement("a");
+      a.href = "https://njump.me/" + npub;
+      a.target = "_blank";
+      a.rel = "noreferrer";
+      a.textContent = pubkey.substring(0, 8);
+
+      a.classList.add("pubkey-ref");
+
       var authorColor = parseInt(pubkey.substring(0, 2), 16) * 360 / 256;
-      span.style.color = "hsl(" + authorColor + ", 90%, 45%)";
-      return span;
+      a.style.color = "hsl(" + authorColor + ", 90%, 45%)";
+      return a;
     }
 
     function metadataView(nostrEv) {
       var view = document.createElement("span");
       view.appendChild(timestampView(nostrEv.created_at));
       view.appendChild(document.createTextNode(" "));
-      view.appendChild(authorView(nostrEv.pubkey));
+      view.appendChild(pubkeyView(nostrEv.pubkey));
       view.appendChild(document.createTextNode(" > "));
       return view;
     }
@@ -185,7 +199,12 @@
       a.classList.add("nostr-ref");
       return a;
     }
-    function nostrRef(ref) {
+    function pubkeyMention(pubkey) {
+      var pubkeyRef = pubkeyView(pubkey);
+      pubkeyRef.classList.add("pubkey-mention");
+      return pubkeyRef;
+    }
+    function nostrUri(ref) {
       var nip19Id = ref.substring(6); // trim "nostr:"
 
       var dec;
@@ -196,7 +215,15 @@
         return document.createTextNode(ref);
       }
 
-      return nostrRefLink(nip19Id, dec.type);
+      switch (dec.type) {
+        case "npub":
+          return pubkeyMention(dec.data);
+        case "nprofile":
+          return pubkeyMention(dec.data.pubkey);
+
+        default:
+          return nostrRefLink(nip19Id, dec.type);
+      }
     }
 
     function customEmoji(shortcode, nostrEv) {
@@ -226,7 +253,7 @@
           if (s.indexOf("http") === 0) {
             return urlLink(s);
           } else if (s.indexOf("nostr:") === 0) {
-            return nostrRef(s);
+            return nostrUri(s);
           } else if (s.charAt(0) === ":" && s.charAt(s.length - 1) === ":") {
             return customEmoji(s, nostrEv);
           } else {
@@ -277,7 +304,7 @@
 
       if (targetPostAuthor) {
         view.appendChild(document.createTextNode(" by "));
-        view.appendChild(authorView(targetPostAuthor));
+        view.appendChild(pubkeyView(targetPostAuthor));
       }
       return view;
     }
