@@ -23,9 +23,12 @@
           pad += padString[i];
           i++;
       }
-
       return pad + String(this).slice(0);
     };
+
+    function getLanguage() {
+      return (window.navigator.language || window.navigator.browserLanguage || window.navigator.userLanguage).substring(0, 2);
+    }
   </script>
   <style>
     html {
@@ -92,7 +95,7 @@
   </p>
 
   <label for="relay-url">Relay URL:</label>
-  <input id="relay-url" type="text" value="wss://yabu.me">
+  <input id="relay-url" type="text">
   <button id="subscribe-relay">Subscribe</button>
 
   <hr />
@@ -520,14 +523,23 @@
     }
 
     // subscribing relay
+    var LS_RELAY_URL_KEY = "relayUrl";
+
     var relayUrlInput = document.getElementById("relay-url");
     var subscribeButton = document.getElementById("subscribe-relay");
     subscribeButton.addEventListener("click", function() {
-      subscribeRelay(relayUrlInput.value);
+      var rurl = relayUrlInput.value;
+      subscribeRelay(rurl);
+      localStorage.setItem(LS_RELAY_URL_KEY, rurl);
     });
 
     // initial subscription
-    subscribeRelay(relayUrlInput.value);
+    var latestRurl = localStorage.getItem(LS_RELAY_URL_KEY);
+    var defaultRurl = getLanguage() === "ja" ? "wss://yabu.me/" : "wss://nos.lol/";
+    var initialRurl = latestRurl || defaultRurl;
+
+    relayUrlInput.value = initialRurl;
+    subscribeRelay(initialRurl);
 
     // create new post
     var nsecInput = document.getElementById("nsec");
