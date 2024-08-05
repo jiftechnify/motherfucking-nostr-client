@@ -70,7 +70,11 @@
       height: 1.6rem;
     }
 
-    span.repost-prefix {
+    span.reply-suffix {
+      font-weight: bold;
+    }
+    span.repost-prefix,
+    span.quote-prefix {
       font-style: italic;
       font-weight: bold;
     }
@@ -109,6 +113,16 @@
   <script>
     function formatTimestamp(date) {
       return String(date.getHours()).padStart(2, "0") + ":" + String(date.getMinutes()).padStart(2, "0") + ":" + String(date.getSeconds()).padStart(2, "0");
+    }
+
+    function findTagWithValue(tags, name, value, extraPred) {
+      for (var i = 0; i < tags.length; i++) {
+        var tag = tags[i];
+        if (tag[0] === name && tag[1] === value && (extraPred ? extraPred(tag) : true)) { 
+          return tag;
+        }
+      }
+      return undefined;
     }
 
     function baseEventView() {
@@ -172,23 +186,48 @@
       return -1;
     }
 
-    function urlLink(url) {
+    function urlLinkElems(url) {
       var splitIdx = indexOfFirstUnmatchingCloseParen(url);
       var finalUrl = splitIdx === -1 ? url : url.substring(0, splitIdx);
       var rest = splitIdx === -1 ? "" : url.substring(splitIdx);
 
-      var a = externalLink(finalUrl, finalUrl);
+      var link = externalLink(finalUrl, finalUrl);
 
       if (rest.length === 0) {
-        return a;
+        return [link];
       }
-      // FIXME: eliminate the auxiliary <span> used to bundle multiple nodes into a single element
-      var aux = document.createElement("span");
       var restSpan = document.createElement("span");
       restSpan.textContent = rest;
-      aux.appendChild(a);
-      aux.appendChild(restSpan);
-      return aux;
+      return [link, restSpan];
+    }
+
+    function extractEventRef(nip19Decoded) {
+      switch (nip19Decoded.type) {
+        case "nevent":
+          return { id: nip19Decoded.data.id, author: nip19Decoded.data.author };
+        case "note":
+          return { id: nip19Decoded.data }
+        default:
+          return undefined;
+      }
+    }
+    function extractReplyRef(tags) {
+      var root; // first "root" p-tag
+
+      for (var i = 0; i < tags.length; i++) {
+        var tag = tags[i];
+        if (tag[0] !== "e") {
+          continue;
+        }
+        if (tag[3] === "reply" && typeof tag[1] === "string") {
+          return { id: tag[1], author: typeof tag[4] === "string" ? tag[4] : undefined };
+        }
+        if (root === undefined && tag[3] === "root" && typeof tag[1] === "string") {
+          root = { id: tag[1], author: typeof tag[4] === "string" ? tag[4] : undefined };
+        }
+      }
+      // no "reply" p-tag
+      return root;
     }
 
     function nostrRefLink(nip19Id, idType) {
@@ -202,29 +241,79 @@
       pubkeyRef.classList.add("pubkey-mention");
       return pubkeyRef;
     }
-    function nostrUri(ref) {
-      var nip19Id = ref.substring(6); // trim "nostr:"
 
+    function referentAuthor(pubkey) {
+      var span = document.createElement("span");
+      span.appendChild(document.createTextNode(" by "));
+      span.appendChild(pubkeyView(pubkey));
+      return span;
+    }
+
+    function inReplyToElems(nostrEv) {
+      var replyRef = extractReplyRef(nostrEv.tags);
+      if (replyRef === undefined) {
+        return [];
+      }
+      
+      var replySuffix = document.createElement("span");
+      replySuffix.textContent = "<< ";
+      replySuffix.classList.add("reply-suffix");
+
+      var nevent = window.NostrTools.nip19.neventEncode(replyRef);
+      var replyLink = nostrRefLink(nevent, "nevent");
+
+      if (!replyRef.author) {
+        return [replyLink, replySuffix];  
+      }
+      return [replyLink, referentAuthor(replyRef.author), replySuffix];
+    }
+
+    function postQuotationElems(nip19Id, idType, author) {
+      var prefix = document.createElement("span");
+      prefix.textContent = "QP: ";
+      prefix.classList.add("quote-prefix");
+
+      var link = nostrRefLink(nip19Id, idType);
+
+      if (!author) {
+        return [prefix, link];
+      }
+      return [prefix, link, referentAuthor(author)];
+    }
+
+    function nostrUriElems(ref, nostrEv) {
+      var nip19Id = ref.substring(6); // trim "nostr:"
       var dec;
       try {
         dec = window.NostrTools.nip19.decode(nip19Id);
       } catch (err) {
         console.error("failed to decode NIP-19 ID:", err);
-        return document.createTextNode(ref);
+        return [document.createTextNode(ref)];
       }
 
       switch (dec.type) {
         case "npub":
-          return pubkeyMention(dec.data);
+          return [pubkeyMention(dec.data)];
         case "nprofile":
-          return pubkeyMention(dec.data.pubkey);
+          return [pubkeyMention(dec.data.pubkey)];
+
+        case "note":
+        case "nevent":
+          var evRef = extractEventRef(dec);
+          if (ref === undefined) {
+            console.error("unreachable");
+            return [nostrRefLink(nip19Id, dec.type)];
+          }
+          var mentionTag = findTagWithValue(nostrEv.tags, "e", evRef.id, function(t) { t[3] === "mention" });
+          var author = (mentionTag && mentionTag[4]) || evRef.author;
+          return postQuotationElems(nip19Id, dec.type, evRef.author);
 
         default:
-          return nostrRefLink(nip19Id, dec.type);
+          return [nostrRefLink(nip19Id, dec.type)];
       }
     }
 
-    function customEmoji(shortcode, nostrEv) {
+    function customEmojiElems(shortcode, nostrEv) {
       var emojiName = shortcode.substring(1, shortcode.length - 1);
       for (var i = 0; i < nostrEv.tags.length; i++) {
         var tag = nostrEv.tags[i];
@@ -233,36 +322,46 @@
           img.src = tag[2];
           img.alt = shortcode;
           img.classList.add("custom-emoji");
-          return img;
+          return [img];
         }
       }
-      return document.createTextNode(shortcode);
+      // no matching emoji found
+      return [document.createTextNode(shortcode)];
     }
 
     function postEventView(nostrEv) {
       var view = baseEventView();
       view.classList.add("event-post");
+      
+      view.appendChild(metadataView(nostrEv));
 
+      // handling reply
+      inReplyToElems(nostrEv).forEach(function(e) {
+        view.appendChild(e);
+      });
+
+      // Node[][]
       var contentElems = nostrEv.content.split(contentRefPattern)
         .filter(function(s) {
           return s !== undefined && s.length > 0;
         })
         .map(function(s) {
           if (s.indexOf("http") === 0) {
-            return urlLink(s);
+            return urlLinkElems(s);
           } else if (s.indexOf("nostr:") === 0) {
-            return nostrUri(s);
+            return nostrUriElems(s, nostrEv);
           } else if (s.charAt(0) === ":" && s.charAt(s.length - 1) === ":") {
-            return customEmoji(s, nostrEv);
+            return customEmojiElems(s, nostrEv);
           } else {
-            return document.createTextNode(s);
+            return [document.createTextNode(s)];
           }
         });
-
-      view.appendChild(metadataView(nostrEv));
-      contentElems.forEach(function(el) {
-        view.appendChild(el);
+      contentElems.forEach(function(elems) {
+        elems.forEach(function(e) {
+          view.appendChild(e);
+        });
       });
+
       return view;
     }
 
@@ -289,6 +388,8 @@
       var view = baseEventView();
       view.classList.add("event-repost");
 
+      view.appendChild(metadataView(nostrEv));
+
       var repostPrefix = document.createElement("span");
       repostPrefix.textContent = "RP: ";
       repostPrefix.classList.add("repost-prefix");
@@ -296,13 +397,10 @@
       var nevent = window.NostrTools.nip19.neventEncode({ id: targetPostId });
       var repostLink = nostrRefLink(nevent, "nevent");
 
-      view.appendChild(metadataView(nostrEv));
       view.appendChild(repostPrefix);
       view.appendChild(repostLink);
-
       if (targetPostAuthor) {
-        view.appendChild(document.createTextNode(" by "));
-        view.appendChild(pubkeyView(targetPostAuthor));
+        view.appendChild(referentAuthor(targetPostAuthor));
       }
       return view;
     }
