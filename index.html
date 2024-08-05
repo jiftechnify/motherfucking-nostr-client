@@ -45,6 +45,10 @@
     li.event.event-repost {
       background-color: hsl(130, 100%, 95%);
     }
+    li.event.event-highlighted {
+      background-color: hsl(55, 100%, 93%);
+      border: 1px dotted #000;
+    } 
 
     button#load-more.loading {
       visibility: hidden;
@@ -239,6 +243,41 @@
       a.classList.add("nostr-ref");
       return a;
     }
+
+    function nostrEventRefLink(nip19id, idType, hexEventId) {
+      var abbrId = nip19id.substring(0, idType.length + 8) + "...";
+      var a = document.createElement("a");
+      a.href = "#" + hexEventId;
+      a.textContent = "nostr:" + abbrId;
+      a.classList.add("nostr-ref");
+      return a;
+    }
+
+    // highlight <li> of event corresponds to event ref link
+    var lastHighlightedEventId;
+    window.addEventListener("hashchange", function() {
+      if (window.location.hash.length === 0) {
+        return;
+      }
+
+      var hash = window.location.hash.substring(1);
+      if (hash.length === 0) {
+        return;
+      }
+      if (lastHighlightedEventId) {
+        var highlighted = document.getElementById(lastHighlightedEventId);
+        if (highlighted) {
+          highlighted.classList.remove("event-highlighted");
+        }
+      }
+      var target = document.getElementById(hash);
+      if (!target) {
+        return;
+      }
+      lastHighlightedEventId = hash;
+      target.classList.add("event-highlighted");
+    });
+
     function pubkeyMention(pubkey) {
       var pubkeyRef = pubkeyView(pubkey);
       pubkeyRef.classList.add("pubkey-mention");
@@ -263,7 +302,7 @@
       replySuffix.classList.add("reply-suffix");
 
       var nevent = window.NostrTools.nip19.neventEncode(replyRef);
-      var replyLink = nostrRefLink(nevent, "nevent");
+      var replyLink = nostrEventRefLink(nevent, "nevent", replyRef.id);
 
       if (!replyRef.author) {
         return [replyLink, replySuffix];  
@@ -271,12 +310,12 @@
       return [replyLink, referentAuthor(replyRef.author), replySuffix];
     }
 
-    function postQuotationElems(nip19Id, idType, author) {
+    function postQuotationElems(nip19Id, idType, hexEventId, author) {
       var prefix = document.createElement("span");
       prefix.textContent = "QP: ";
       prefix.classList.add("quote-prefix");
 
-      var link = nostrRefLink(nip19Id, idType);
+      var link = nostrEventRefLink(nip19Id, idType, hexEventId);
 
       if (!author) {
         return [prefix, link];
@@ -309,7 +348,7 @@
           }
           var mentionTag = findTagWithValue(nostrEv.tags, "e", evRef.id, function(t) { t[3] === "mention" });
           var author = (mentionTag && mentionTag[4]) || evRef.author;
-          return postQuotationElems(nip19Id, dec.type, evRef.author);
+          return postQuotationElems(nip19Id, dec.type, evRef.id, evRef.author);
 
         default:
           return [nostrRefLink(nip19Id, dec.type)];
@@ -334,6 +373,7 @@
 
     function postEventView(nostrEv) {
       var view = baseEventView();
+      view.id = nostrEv.id;
       view.classList.add("event-post");
       
       view.appendChild(metadataView(nostrEv));
@@ -398,7 +438,7 @@
       repostPrefix.classList.add("repost-prefix");
       
       var nevent = window.NostrTools.nip19.neventEncode({ id: targetPostId });
-      var repostLink = nostrRefLink(nevent, "nevent");
+      var repostLink = nostrEventRefLink(nevent, "nevent", targetPostId);
 
       view.appendChild(repostPrefix);
       view.appendChild(repostLink);
