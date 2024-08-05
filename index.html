@@ -117,6 +117,15 @@
       return li;
     }
 
+    function externalLink(url, text) {
+      var a = document.createElement("a");
+      a.href = url;
+      a.target = "_blank";
+      a.rel = "noreferrer";
+      a.textContent = text;
+      return a;
+    }
+
     function timestampView(unixtime) {
       var ts = new Date(unixtime * 1000);
       var timeElem = document.createElement("time");
@@ -128,16 +137,11 @@
     function pubkeyView(pubkey) {
       var npub = window.NostrTools.nip19.npubEncode(pubkey);
 
-      var a = document.createElement("a");
-      a.href = "https://njump.me/" + npub;
-      a.target = "_blank";
-      a.rel = "noreferrer";
-      a.textContent = pubkey.substring(0, 8);
-
+      var a = externalLink("https://njump.me/" + npub, pubkey.substring(0, 8));
       a.classList.add("pubkey-ref");
 
-      var authorColor = parseInt(pubkey.substring(0, 2), 16) * 360 / 256;
-      a.style.color = "hsl(" + authorColor + ", 90%, 45%)";
+      var pubkeyHue = parseInt(pubkey.substring(0, 2), 16) * 360 / 256;
+      a.style.color = "hsl(" + pubkeyHue + ", 90%, 45%)";
       return a;
     }
 
@@ -173,11 +177,7 @@
       var finalUrl = splitIdx === -1 ? url : url.substring(0, splitIdx);
       var rest = splitIdx === -1 ? "" : url.substring(splitIdx);
 
-      var a = document.createElement("a");
-      a.href = finalUrl;
-      a.target = "_blank";
-      a.rel = "noreferrer";
-      a.textContent = finalUrl;
+      var a = externalLink(finalUrl, finalUrl);
 
       if (rest.length === 0) {
         return a;
@@ -192,11 +192,8 @@
     }
 
     function nostrRefLink(nip19Id, idType) {
-      var a = document.createElement("a");
-      a.href = "https://njump.me/" + nip19Id;
-      a.target = "_blank";
-      a.rel = "noreferrer";
-      a.textContent = "nostr:" + nip19Id.substring(0, idType.length + 8) + "...";
+      var abbrId = nip19Id.substring(0, idType.length + 8) + "...";
+      var a = externalLink("https://njump.me/" + nip19Id, "nostr:" + abbrId);
       a.classList.add("nostr-ref");
       return a;
     }
